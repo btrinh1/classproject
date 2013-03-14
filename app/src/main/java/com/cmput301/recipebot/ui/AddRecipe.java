@@ -161,14 +161,37 @@ public class AddRecipe extends Activity {
                             final View myView = inflater.inflate(R.layout.email_entry, null);
                             ebuilder.setTitle("Who would you like to email?");
                             ebuilder.setView(myView);
+                            ebuilder.setPositiveButton("Send", new DialogInterface.OnClickListener(){
+                                @Override
+                                public void onClick(DialogInterface dialog, int which){
+                                     System.out.println("positive click");
+                                }
+
+                            });
+
+
+
+
+
                             AlertDialog alert = ebuilder.create();
                             alert.show();
+
+
+                        }
+                        if (item == 0){
+                            // STUB for publish
+                           // IngredientEditText.toString();   to send user entered Ingredients
+                           // InstructionEditText.toString();  to send user entered Instructions
+                            System.out.println("Publish selected");
 
 
                         }
                     }
 
                 });
+
+// other code to customize the dialog
+               // Dialog d = builder.create();
                 AlertDialog alert = builder.create();
 
                 alert.show();

@@ -102,22 +102,22 @@
                 android:background="@android:color/transparent"
                 android:textSize="16dp"
                 />
-        <GridLayout
-                android:orientation="vertical"
+        <LinearLayout
+                android:orientation="horizontal"
                 android:layout_width="fill_parent"
                 android:layout_height="fill_parent">
             <Button
                     android:layout_width="150dp"
                     android:layout_height="wrap_content"
                     android:text="Share"
-                    android:id="@+id/PublishButton" android:layout_row="0" android:layout_column="1"/>
+                    android:id="@+id/PublishButton" android:layout_gravity="left|center_vertical"/>
             <Button
                     android:layout_width="150dp"
                     android:layout_height="wrap_content"
                     android:text="Save"
                     android:id="@+id/SaveButton"
-                    android:layout_row="0" android:layout_column="3"/>
-        </GridLayout>
+                    android:layout_marginLeft="20dp"/>
+        </LinearLayout>
 
 
     </LinearLayout>
