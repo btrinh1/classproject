@@ -25,7 +25,6 @@ import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Movie;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -54,9 +53,8 @@ import com.google.gson.Gson;
 import com.nostra13.universalimageloader.core.ImageLoader;
 import roboguice.inject.InjectView;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.*;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -416,21 +414,21 @@ public class RecipeActivity extends BaseActivity implements CompoundButton.OnChe
         @Override
         public Object instantiateItem(ViewGroup view, int position) {
             if (position < images.size()) {
-                final ImageView imageView = (ImageView) getLayoutInflater().inflate(R.layout.pager_item_recipe_image, view, false);
 
+                String image = images.get(position);
+                final ImageView imageView = (ImageView) getLayoutInflater().inflate(R.layout.pager_item_recipe_image, view, false);
                 ViewGroup.LayoutParams lp = new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
                 imageView.setLayoutParams(lp);
                 imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
 
-                if(images.get(position).startsWith("http") || images.get(position).startsWith("file")){
-                ImageLoader.getInstance().displayImage(images.get(position), imageView);
-                ((ViewPager) view).addView(imageView, 0);
+                if(image.startsWith("http") || image.startsWith("file")){
+                    ImageLoader.getInstance().displayImage(image, imageView);
+                    ((ViewPager) view).addView(imageView, 0);
                 }
                 else{
-                Bitmap bm = getImageFromBase64(images.get(position));
-                imageView.setImageBitmap(bm);
-                ((ViewPager) view).addView(imageView, 0);
+                    new BitmapWorkerTask(imageView).execute(image);
                 }
+
                 return imageView;
             } else if (position == images.size()) {
                 // Set up an add button
@@ -491,50 +489,62 @@ public class RecipeActivity extends BaseActivity implements CompoundButton.OnChe
      * Allows for an image to be selected from the phone's Gallery
      */
     @Override
-    protected void onActivityResult(int requestCode, int resultCode,
-                                    Intent data) {
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-
-        if (requestCode == RESULT_LOAD_IMAGE && resultCode ==
-                RESULT_OK && null != data) {
+        if (requestCode == RESULT_LOAD_IMAGE && resultCode == RESULT_OK && null != data) {
             Uri selectedImage = data.getData();
             String[] filePathColumn = {MediaStore.Images.Media.DATA};
-            Cursor cursor = getContentResolver().query(selectedImage,
-                    filePathColumn, null, null, null);
+            Cursor cursor = getContentResolver().query(selectedImage, filePathColumn, null, null, null);
             cursor.moveToFirst();
             int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
             String picturePath = cursor.getString(columnIndex);
             cursor.close();
+
+            Bitmap bitmap= BitmapFactory.decodeFile(picturePath);
+
+//            String encodedImage = convertImageToBase64(bitmap);
+//            mRecipePhotos.add(encodedImage);
+
             mRecipePhotos.add("file:///" + picturePath);
-            ((ImagePagerAdapter)
-                    mViewPhotos.getAdapter()).swapData(mRecipePhotos);
+            mViewPhotos.setAdapter(new ImagePagerAdapter(mRecipePhotos));
 
-            //** Bit map stuff ***//
-            Bitmap testbit = BitmapFactory.decodeFile(picturePath);
-
-            convertFromGallery(testbit);
+            convertFromGallery(bitmap);
 
         } else if (requestCode == TAKE_PICTURE && resultCode == RESULT_OK) {
             Uri selectedImage = cameraImageUri;
-            mRecipePhotos.add("file:///" + selectedImage);
-            ((ImagePagerAdapter)
-                    mViewPhotos.getAdapter()).swapData(mRecipePhotos);
+
             String path = selectedImage.getPath();
             Bitmap bitmap = BitmapFactory.decodeFile(path);
 
-            convertFromGallery(bitmap);
+
+            //String encodedImage = convertImageToBase64(bitmap);
+            //mRecipePhotos.add(encodedImage);
+
+            // Adds image from directory
+            mRecipePhotos.add("file:///" + selectedImage.getPath());    // Adds file
+            mViewPhotos.setAdapter(new ImagePagerAdapter(mRecipePhotos));
+
+             convertFromGallery(bitmap);
         }
 
     }
+
+    public Bitmap stringToBitMap(String imageString){
+        byte[] imageBytes = Base64.decode(imageString, Base64.NO_WRAP);
+        InputStream in = new ByteArrayInputStream(imageBytes);
+        Bitmap b = BitmapFactory.decodeStream(in);
+
+        return b;
+    }
+
     public void convertFromGallery(Bitmap bit){
 
         String bitmapString = convertImageToBase64(bit);
-        Log.v("*picture path", bitmapString);
+        //Log.v("*picture path", bitmapString);
 
-        mRecipePhotos.add(bitmapString);
-
-        Bitmap convertedBitmap = getImageFromBase64(bitmapString);
+        //mRecipePhotos.add(bitmapString);
+        //Bitmap convertedBitmap = getImageFromBase64(bitmapString);
 
     }
 
@@ -553,8 +563,10 @@ public class RecipeActivity extends BaseActivity implements CompoundButton.OnChe
      * @return the bitmap image
      */
     public static Bitmap getImageFromBase64(String image) {
-        byte[] imageData = Base64.decode(image, Base64.URL_SAFE | Base64.NO_WRAP);
+        byte[] imageData = Base64.decode(image, Base64.URL_SAFE |
+                Base64.NO_WRAP);
         return BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+
     }
 
     @Override
@@ -696,6 +708,36 @@ public class RecipeActivity extends BaseActivity implements CompoundButton.OnChe
             return false;
         }
     }
+
+    class BitmapWorkerTask extends AsyncTask<String, Void, Bitmap> {
+        private final WeakReference<ImageView> imageViewReference;
+
+
+        public BitmapWorkerTask(ImageView imageView) {
+            // Use a WeakReference to ensure the ImageView can be garbage collected
+            imageViewReference = new WeakReference<ImageView>(imageView);
+        }
+
+        // Decode image in background.
+        @Override
+        protected Bitmap doInBackground(String... params) {
+            String data = params[0];
+            return getImageFromBase64(data);
+        }
+
+        // Once complete, see if ImageView is still around and set bitmap.
+        @Override
+        protected void onPostExecute(Bitmap bitmap) {
+            if (imageViewReference != null && bitmap != null) {
+                final ImageView imageView = imageViewReference.get();
+                if (imageView != null) {
+                    imageView.setImageBitmap(bitmap);
+                }
+            }
+        }
+    }
+
+
 }
 
 
